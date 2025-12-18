@@ -6,11 +6,70 @@ ENV_FILE=".env.web"
 
 read -p "Would you like to answer setup questions? (y/n): " answerSetup
 
-if [ "$OS" = "Linux" ]; then
-    echo "Installing required packages (Git, curl, ca-certificates)..."
-    sudo apt-get update
-    sudo apt-get install -y git curl ca-certificates
+SUDO=""
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
 fi
+
+install_dependencies() {
+    echo "Installing required packages (git, curl, ca-certificates)..."
+    if command -v apt-get >/dev/null 2>&1 || command -v apt >/dev/null 2>&1; then
+        $SUDO apt-get update -y || $SUDO apt update -y 
+        $SUDO apt-get install -y git curl ca-certificates || $SUDO apt install -y git curl ca-certificates
+        return
+    fi
+
+    if command -v apk >/dev/null 2>&1; then
+        $SUDO apk update
+        $SUDO apk add git curl ca-certificates
+        return
+    fi
+    
+    if command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y git curl ca-certificates
+        return
+    fi
+
+    if command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y git curl ca-certificates
+        return
+    fi
+
+    if command -v zypper >/dev/null 2>&1; then
+        $SUDO zypper refresh
+        $SUDO zypper install -y git curl ca-certificates
+        return
+    fi
+
+    if command -v pacman >/dev/null 2>&1; then
+        $SUDO pacman -Sy --noconfirm git curl ca-certificates
+        return
+    fi
+
+    echo "Could not detect a supported package manager. Please install git, curl, and ca-certificates manually."
+}
+
+case "$OS" in
+    Linux)
+        install_dependencies;;
+    Darwin)
+        echo "Checking for Homebrew (macOS)..."
+        if command -v brew >/dev/null 2>&1; then
+            echo "Installing git and curl via Homebrew..."
+            brew update
+            brew install git curl
+            echo "macOS manages CA certificates by default; no action needed."
+        else
+            echo "Homebrew not found. Install from https://brew.sh and re-run this script."
+        fi
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        echo "Windows detected. Please use WSL or install dependencies manually (Git, curl, Docker Desktop)."
+        ;;
+    *)
+        echo "Unsupported platform: $OS"
+        ;;
+esac
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker not found. Installing."
